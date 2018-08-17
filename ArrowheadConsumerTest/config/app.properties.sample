@@ -1,0 +1,8 @@
+orch_uri=http://127.0.0.1:8440/orchestrator/orchestration
+
+#Certificate properties
+keystore=config/certificates/testcloud1/client1.testcloud1.jks
+keystorepass=12345
+keypass=12345
+truststore=config/certificates/testcloud1/testcloud1_cert.jks
+truststorepass=12345
