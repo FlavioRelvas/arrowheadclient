@@ -20,7 +20,7 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.SecurityContext;
 
-@Path("temperature")
+@Path("power")
 @Produces(MediaType.APPLICATION_JSON)
 //REST service example
 public class TemperatureResource {

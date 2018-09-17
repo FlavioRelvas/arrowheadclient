@@ -6,7 +6,6 @@
  *  (project no. 737459), the free state of Saxony, the German Federal Ministry of Education and
  *  national funding authorities from involved countries.
  */
-
 package eu.arrowhead.client.publisher;
 
 import eu.arrowhead.client.common.can_be_modified.misc.ClientType;
@@ -24,43 +23,44 @@ import java.util.Set;
 //The publisher only uses a web server in order to provide an interface for the Event Handler to signal back the result of the event publishing
 public class PublisherMain extends ArrowheadClientMain {
 
-  private PublisherMain(String[] args) {
-    //Start the web server, read in the command line arguments
-    Set<Class<?>> classes = new HashSet<>(Collections.singleton(PublisherResource.class));
-    String[] packages = {"eu.arrowhead.client.common"};
-    init(ClientType.PUBLISHER, args, classes, packages);
+    private PublisherMain(String[] args) {
+        //Start the web server, read in the command line arguments
+        Set<Class<?>> classes = new HashSet<>(Collections.singleton(PublisherResource.class));
+        String[] packages = {"eu.arrowhead.client.common"};
+        init(ClientType.PUBLISHER, args, classes, packages);
 
-    //Publish the event to the Event Handler Core System
-    publishEvent();
-    //This method listens for a shutdown, and makes sure everything closes gracefully
-    listenForInput();
-  }
+        //Publish the event to the Event Handler Core System
+        publishEvent();
+        //This method listens for a shutdown, and makes sure everything closes gracefully
+        listenForInput();
+    }
 
-  public static void main(String[] args) {
-    new PublisherMain(args);
-  }
+    public static void main(String[] args) {
+        new PublisherMain(args);
+    }
 
-  private void publishEvent() {
-    //Read in the Event Handler address related properties, create the full URL with the getUri() utility method
-    String ehAddress = props.getProperty("eh_address", "0.0.0.0");
-    int ehPort = isSecure ? props.getIntProperty("eh_secure_port", 8455) : props.getIntProperty("eh_insecure_port", 8454);
-    String ehUri = Utility.getUri(ehAddress, ehPort, "eventhandler/publish", isSecure, false);
+    private void publishEvent() {
+        //Read in the Event Handler address related properties, create the full URL with the getUri() utility method
+        String ehAddress = props.getProperty("eh_address", "0.0.0.0");
+        int ehPort = isSecure ? props.getIntProperty("eh_secure_port", 8455) : props.getIntProperty("eh_insecure_port", 8454);
+        String ehUri = Utility.getUri(ehAddress, ehPort, "eventhandler/publish", isSecure, false);
 
-    //Read in the fields needed to create the event
-    String systemName = isSecure ? props.getProperty("secure_system_name") : props.getProperty("insecure_system_name");
-    String address = props.getProperty("address", "0.0.0.0");
-    int insecurePort = props.getIntProperty("insecure_port", ClientType.PUBLISHER.getInsecurePort());
-    int securePort = props.getIntProperty("secure_port", ClientType.PUBLISHER.getSecurePort());
-    int usedPort = isSecure ? securePort : insecurePort;
-    String type = props.getProperty("event_type");
-    String payload = props.getProperty("event_payload");
+        //Read in the fields needed to create the event
+        String systemName = isSecure ? props.getProperty("secure_system_name") : props.getProperty("insecure_system_name");
+        String address = props.getProperty("address", "0.0.0.0");
+        int insecurePort = props.getIntProperty("insecure_port", ClientType.PUBLISHER.getInsecurePort());
+        int securePort = props.getIntProperty("secure_port", ClientType.PUBLISHER.getSecurePort());
+        int usedPort = isSecure ? securePort : insecurePort;
+        String type = props.getProperty("event_type");
+        String payload = props.getProperty("event_payload");
 
-    //Put together the event POJO and send the request to the Event Handler
-    ArrowheadSystem source = new ArrowheadSystem(systemName, address, usedPort, base64PublicKey);
-    Event event = new Event(type, payload, LocalDateTime.now(), null);
-    PublishEvent eventPublishing = new PublishEvent(source, event, "publisher/feedback");
-    Utility.sendRequest(ehUri, "POST", eventPublishing);
-    System.out.println("Event published to EH.");
-  }
+        //Put together the event POJO and send the request to the Event Handler
+        ArrowheadSystem source = new ArrowheadSystem(systemName, address, usedPort, null);
+        Event event = new Event(type, payload, LocalDateTime.now(), null);
+        System.out.println(Utility.toPrettyJson(null, event));
+        PublishEvent eventPublishing = new PublishEvent(source, event, "publisher/feedback");
+        Utility.sendRequest(ehUri, "POST", eventPublishing);
+        System.out.println("Event published to EH.");
+    }
 
 }
