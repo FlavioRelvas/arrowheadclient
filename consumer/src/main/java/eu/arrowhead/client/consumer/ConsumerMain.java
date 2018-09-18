@@ -32,12 +32,12 @@ public class ConsumerMain {
     static {
         System.load("/media/flavio/Data/Documentos/PESTI/CISTER/Repositories/arrowhead github/arrowheadclient/consumer/src/main/java/eu/arrowhead/client/consumer/lpcap/module.so");
     }
-    
+
     private static boolean isSecure;
     private static String orchestratorUrl;
     private static final TypeSafeProperties props = Utility.getProp("app.properties");
     private static Stub s;
-    
+
     public static void main(String[] args) {
         //Prints the working directory for extra information. Working directory should always contain a config folder with the app.properties file!
         System.out.println("Working directory: " + System.getProperty("user.dir"));
@@ -60,6 +60,7 @@ public class ConsumerMain {
         //Printing out the elapsed time during the orchestration and service consumption
         long endTime = System.currentTimeMillis();
         System.out.println("Orchestration and Service consumption response time: " + Long.toString(endTime - startTime));
+
     }
 
     //Compiles the payload for the orchestration request
@@ -98,16 +99,16 @@ public class ConsumerMain {
         //When true, the Orchestrator can turn to the Gatekeeper to initiate interCloud orchestration, if the Local Cloud had no adequate provider
         //orchestrationFlags.put("enableInterCloud", true);
         orchestrationFlags.put("enableQoS", true);
-        
+
         Map<String, String> requestQoS = new HashMap<>();
-        requestQoS.put("bandwidth", "0.2B/s");
+        requestQoS.put("bandwidth", "0.00b/s");
 
         //Build the complete service request form from the pieces, and return it
         ServiceRequestForm srf = new ServiceRequestForm.Builder(consumer).requestedService(service).orchestrationFlags(orchestrationFlags).requestedQoS(requestQoS).build();
         System.out.println("Service Request payload: " + Utility.toPrettyJson(null, srf));
         return srf;
     }
-    
+
     private static void consumeService(String providerUrl) {
         /*
       Sending request to the provider, to the acquired URL. The method type and payload should be known beforehand.
@@ -149,7 +150,7 @@ public class ConsumerMain {
         String orchAddress = props.getProperty("orch_address", "0.0.0.0");
         int orchInsecurePort = props.getIntProperty("orch_insecure_port", 8440);
         int orchSecurePort = props.getIntProperty("orch_secure_port", 8441);
-        
+
         for (String arg : args) {
             if (arg.equals("-tls")) {
                 isSecure = true;
@@ -162,7 +163,7 @@ public class ConsumerMain {
                 break;
             }
         }
-        
+
         if (isSecure) {
             orchestratorUrl = Utility.getUri(orchAddress, orchSecurePort, "orchestrator/orchestration", true, false);
         } else {
@@ -202,5 +203,33 @@ public class ConsumerMain {
         System.out.println("Received provider system URL: " + ub.toString());
         return ub.toString();
     }
-    
+
+    private static void releaseResources() {
+        ArrowheadSystem consumer = new ArrowheadSystem("client2", "localhost", 0, "null");
+        consumer.setId(30);
+
+        ArrowheadService service = new ArrowheadService("InsecureQoSManager", Collections.singletonList("JSON"), null);
+
+        //Build the complete service request form from the pieces, and return it
+        ServiceRequestForm srf = new ServiceRequestForm.Builder(consumer).requestedService(service).build();
+        System.out.println("Service Request payload: " + Utility.toPrettyJson(null, srf));
+
+        Response postResponse = Utility.sendRequest(orchestratorUrl, "POST", srf);
+        //Parsing the orchestrator response
+        OrchestrationResponse orchResponse = postResponse.readEntity(OrchestrationResponse.class);
+        System.out.println("Orchestration Response payload: " + Utility.toPrettyJson(null, orchResponse));
+        if (orchResponse.getResponse().isEmpty()) {
+            throw new ArrowheadException("Orchestrator returned with 0 Orchestration Forms!");
+        }
+
+        //Getting the first provider from the response
+        ArrowheadSystem provider = orchResponse.getResponse().get(0).getProvider();
+        String providerUrl = Utility.getUri(provider.getAddress(), provider.getPort(), "release", false, false);
+
+        Response releaseResponse = Utility.sendRequest(providerUrl, "POST", consumer);
+        if (releaseResponse.getStatusInfo().getFamily() != Response.Status.Family.SUCCESSFUL) {
+            throw new ArrowheadException("Unable to release resources.");
+        }
+    }
+
 }

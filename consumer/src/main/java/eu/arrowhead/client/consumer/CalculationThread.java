@@ -88,7 +88,7 @@ public class CalculationThread implements Runnable {
                 contentLength += Integer.parseInt(teste.front(q).split(",")[2].trim());
                 teste.Dequeue(q);
             }
-            return String.format("%.2fb/s", contentLength / ((endTime - startTime) * Math.pow(10, -9)));
+            return String.format("%.2fb/s", (float)contentLength / ((endTime - startTime) * Math.pow(10, -9)));
         });
         return f;
     }
