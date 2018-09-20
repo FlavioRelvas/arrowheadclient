@@ -72,6 +72,7 @@ public class CalculationThread implements Runnable {
             //OrchestrationResponse orchResponse = postResponse.readEntity(OrchestrationResponse.class);
             if ((postResponse.getStatusInfo().getFamily() == Response.Status.Family.SUCCESSFUL)) {
                 System.out.println("Log added successfully");
+                Stub.pool.shutdownNow();
             }
         } catch (InterruptedException | ExecutionException ex) {
             System.out.println(ex);

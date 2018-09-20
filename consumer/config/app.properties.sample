@@ -17,3 +17,5 @@ truststorepass=12345
 orch_address=0.0.0.0
 orch_insecure_port=8440
 orch_secure_port=8441
+
+system_name=consumer

@@ -5,7 +5,6 @@
  */
 package eu.arrowhead.client.consumer;
 
-
 import eu.arrowhead.client.common.no_need_to_modify.Utility;
 import eu.arrowhead.client.common.no_need_to_modify.model.ArrowheadSystem;
 import eu.arrowhead.client.consumer.lpcap.CaptureThread;
@@ -46,15 +45,15 @@ public class Stub {
     private Instrumentation i;
     private final int MAX_QUEUE_SIZE = 100;
     private final String NETWORK_INTEFACE = "enp4s0";
+    private static InetAddress ip = null;
 
-    private Queue q = teste.createQueue(100);
+    private Queue q;
 
     public Stub(ArrowheadSystem consumer, ArrowheadSystem provider) {
         //System.load("/home/flavio/NetBeansProjects/arrowhead-m3-funcional-clients/ArrowheadConsumerTest/src/main/java/eu/arrowhead/ArrowheadConsumer/lpcap/module.so");
         this.consumer = consumer;
         this.provider = provider;
         try {
-            InetAddress ip = null;
             NetworkInterface ninf = NetworkInterface.getByName(NETWORK_INTEFACE);
             Enumeration<InetAddress> addresses = ninf.getInetAddresses();
             while (addresses.hasMoreElements()) {
@@ -63,19 +62,21 @@ public class Stub {
                     break;
                 }
             }
-            if (ip != null) {
-                teste.handleDev(NETWORK_INTEFACE);
-                teste.handleDescr();
-                teste.setFilter("(dst host " + provider.getAddress() + " && port " + provider.getPort() + ") || (dst host " + ip.toString().replace("/", "") + " && (src host " + provider.getAddress() + " && port " + provider.getPort() + "))");
-                System.out.println("FILTER: " + teste.getFilter());
-                pool.execute(new CaptureThread(q));
-            }
         } catch (SocketException ex) {
             Logger.getLogger(Stub.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
 
     public <T> Response sendRequestM(String uri, String method, T payload) {
+        pool = Executors.newFixedThreadPool(POOL_SIZE);
+        if (ip != null) {
+            teste.handleDev(NETWORK_INTEFACE);
+            teste.handleDescr();
+            teste.setFilter("(dst host " + provider.getAddress() + " && port " + provider.getPort() + ") || (dst host " + ip.toString().replace("/", "") + " && (src host " + provider.getAddress() + " && port " + provider.getPort() + "))");
+            System.out.println("FILTER: " + teste.getFilter());
+            q=teste.createQueue(100);
+            pool.execute(new CaptureThread(q));
+        }
         startTime = System.nanoTime();
         Instant st = Instant.now();
         System.out.println(Utility.toPrettyJson(null, Entity.json(payload)));

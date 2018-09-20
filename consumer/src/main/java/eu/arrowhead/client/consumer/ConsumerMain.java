@@ -17,9 +17,14 @@ import eu.arrowhead.client.common.no_need_to_modify.model.ArrowheadSystem;
 import eu.arrowhead.client.common.no_need_to_modify.model.OrchestrationResponse;
 import eu.arrowhead.client.common.no_need_to_modify.model.ServiceRequestForm;
 import java.awt.Font;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.net.ssl.SSLContext;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -37,6 +42,7 @@ public class ConsumerMain {
     private static String orchestratorUrl;
     private static final TypeSafeProperties props = Utility.getProp("app.properties");
     private static Stub s;
+    static boolean flag = true;
 
     public static void main(String[] args) {
         //Prints the working directory for extra information. Working directory should always contain a config folder with the app.properties file!
@@ -54,12 +60,45 @@ public class ConsumerMain {
         //Sending the orchestration request and parsing the response
         String providerUrl = sendOrchestrationRequest(srf);
 
-        //Connect to the provider, consuming its service - THIS METHOD SHOULD BE MODIFIED ACCORDING TO YOUR USE CASE
-        consumeService(providerUrl);
+        Thread t = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                while (flag) {
+                    try {
+                        //Connect to the provider, consuming its service - THIS METHOD SHOULD BE MODIFIED ACCORDING TO YOUR USE CASE
+                        consumeService(providerUrl);
 
-        //Printing out the elapsed time during the orchestration and service consumption
-        long endTime = System.currentTimeMillis();
-        System.out.println("Orchestration and Service consumption response time: " + Long.toString(endTime - startTime));
+                        //Printing out the elapsed time during the orchestration and service consumption
+                        long endTime = System.currentTimeMillis();
+                        System.out.println("Orchestration and Service consumption response time: " + Long.toString(endTime - startTime));
+                        Thread.sleep(3000);
+                    } catch (InterruptedException ex) {
+                        Logger.getLogger(ConsumerMain.class.getName()).log(Level.SEVERE, null, ex);
+                    }
+                }
+            }
+        });
+        t.start();
+
+        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+        String input = "";
+        try {
+            while (!input.equals("stop")) {
+                input = br.readLine();
+            }
+            br.close();
+            flag = false;
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        try {
+            t.join();
+        } catch (InterruptedException ex) {
+            Logger.getLogger(ConsumerMain.class.getName()).log(Level.SEVERE, null, ex);
+        }
+
+        System.out.println("Releasing resources");
+        releaseResources();
 
     }
 
@@ -71,8 +110,11 @@ public class ConsumerMain {
       the address, port and authenticationInfo fields can be set to anything.
       SystemName can be an arbitrarily chosen name, which makes sense for the use case.
          */
-        ArrowheadSystem consumer = new ArrowheadSystem("client2", "localhost", 0, "null");
-        consumer.setId(30);
+
+        String systemName = props.getProperty("system_name");
+
+        ArrowheadSystem consumer = new ArrowheadSystem(systemName, "localhost", 0, "null");
+        consumer.setId(props.getIntProperty("system_id", 0));
 
         //You can put any additional metadata you look for in a Service here (key-value pairs)
         Map<String, String> metadata = new HashMap<>();
@@ -101,7 +143,7 @@ public class ConsumerMain {
         orchestrationFlags.put("enableQoS", true);
 
         Map<String, String> requestQoS = new HashMap<>();
-        requestQoS.put("bandwidth", "0.00b/s");
+        requestQoS.put("bandwidth", props.getProperty("bandwidth"));
 
         //Build the complete service request form from the pieces, and return it
         ServiceRequestForm srf = new ServiceRequestForm.Builder(consumer).requestedService(service).orchestrationFlags(orchestrationFlags).requestedQoS(requestQoS).build();
@@ -136,8 +178,9 @@ public class ConsumerMain {
             System.out.println("The indoor temperature is " + readout.getE().get(0).getV() + " degrees celsius.");
             JLabel label = new JLabel("The indoor temperature is " + readout.getE().get(0).getV() + " degrees celsius.");
             label.setFont(new Font("Arial", Font.BOLD, 18));
-            JOptionPane.showMessageDialog(null, label, "Provider Response", JOptionPane.INFORMATION_MESSAGE);
+            //JOptionPane.showMessageDialog(null, label, "Provider Response", JOptionPane.INFORMATION_MESSAGE);
         }
+        
     }
 
     /*
@@ -205,13 +248,19 @@ public class ConsumerMain {
     }
 
     private static void releaseResources() {
-        ArrowheadSystem consumer = new ArrowheadSystem("client2", "localhost", 0, "null");
-        consumer.setId(30);
+        String systemName = props.getProperty("system_name");
+
+        ArrowheadSystem consumer = new ArrowheadSystem(systemName, "localhost", 0, "null");
+        consumer.setId(props.getIntProperty("system_id", 0));
 
         ArrowheadService service = new ArrowheadService("InsecureQoSManager", Collections.singletonList("JSON"), null);
 
         //Build the complete service request form from the pieces, and return it
-        ServiceRequestForm srf = new ServiceRequestForm.Builder(consumer).requestedService(service).build();
+        Map<String, Boolean> orchestrationFlags = new HashMap<>();
+        //When true, the orchestration store will not be queried for "hard coded" consumer-provider connections
+        orchestrationFlags.put("overrideStore", true);
+
+        ServiceRequestForm srf = new ServiceRequestForm.Builder(consumer).requestedService(service).orchestrationFlags(orchestrationFlags).build();
         System.out.println("Service Request payload: " + Utility.toPrettyJson(null, srf));
 
         Response postResponse = Utility.sendRequest(orchestratorUrl, "POST", srf);
@@ -224,7 +273,7 @@ public class ConsumerMain {
 
         //Getting the first provider from the response
         ArrowheadSystem provider = orchResponse.getResponse().get(0).getProvider();
-        String providerUrl = Utility.getUri(provider.getAddress(), provider.getPort(), "release", false, false);
+        String providerUrl = Utility.getUri(provider.getAddress(), provider.getPort(), orchResponse.getResponse().get(0).getServiceURI() + "/release", false, false);
 
         Response releaseResponse = Utility.sendRequest(providerUrl, "POST", consumer);
         if (releaseResponse.getStatusInfo().getFamily() != Response.Status.Family.SUCCESSFUL) {
