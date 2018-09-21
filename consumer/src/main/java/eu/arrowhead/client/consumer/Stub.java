@@ -88,16 +88,16 @@ public class Stub {
         int cl = 0;
         for (Map.Entry<String, List<String>> entry : header.entrySet()) {
             for (String s : entry.getValue()) {
-                System.out.println(s);
+                //System.out.println(s);
                 cl += s.length();
             }
-            System.out.println(entry.getKey());
+            //System.out.println(entry.getKey());
             cl += entry.getKey().length();
         }
         cl += r.getLength();
-        System.out.println("Size " + cl);
+        //System.out.println("Size " + cl);
         contentLength = r.getLength();
-        System.out.println("ST: " + st.toString() + "ET: " + et.toString());
+        //System.out.println("ST: " + st.toString() + "ET: " + et.toString());
         pool.execute(new CalculationThread(startTime, endTime, q, st, et, consumer, provider));
         return r;
     }

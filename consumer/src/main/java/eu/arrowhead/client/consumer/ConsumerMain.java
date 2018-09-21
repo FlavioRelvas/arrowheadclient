@@ -71,7 +71,7 @@ public class ConsumerMain {
                         //Printing out the elapsed time during the orchestration and service consumption
                         long endTime = System.currentTimeMillis();
                         System.out.println("Orchestration and Service consumption response time: " + Long.toString(endTime - startTime));
-                        Thread.sleep(3000);
+                        Thread.sleep(2000);
                     } catch (InterruptedException ex) {
                         Logger.getLogger(ConsumerMain.class.getName()).log(Level.SEVERE, null, ex);
                     }
@@ -170,12 +170,12 @@ public class ConsumerMain {
             System.out.println("Provider Response payload: " + Utility.toPrettyJson(null, readout));
         } catch (RuntimeException e) {
             e.printStackTrace();
-            System.out.println("Provider did not send the temperature readout in SenML format.");
+            System.out.println("Provider did not send the power readout in SenML format.");
         }
         if (readout.getE().get(0) == null) {
             System.out.println("Provider did not send any MeasurementEntry.");
         } else {
-            System.out.println("The indoor temperature is " + readout.getE().get(0).getV() + " degrees celsius.");
+            System.out.println("The device power consumption is " + readout.getE().get(0).getV() + " watts.");
             JLabel label = new JLabel("The indoor temperature is " + readout.getE().get(0).getV() + " degrees celsius.");
             label.setFont(new Font("Arial", Font.BOLD, 18));
             //JOptionPane.showMessageDialog(null, label, "Provider Response", JOptionPane.INFORMATION_MESSAGE);

@@ -81,7 +81,6 @@ public class CalculationThread implements Runnable {
 
     private Future<String> calculateBandwidth() {
         Future<String> f = Stub.pool.submit(() -> {
-            Thread.sleep(1000);
             teste.stop(teste.getDescr());
             System.out.println("SIZE: " + q.getSize());
             while (q.getSize() > 0) {
@@ -89,7 +88,7 @@ public class CalculationThread implements Runnable {
                 contentLength += Integer.parseInt(teste.front(q).split(",")[2].trim());
                 teste.Dequeue(q);
             }
-            return String.format("%.2fb/s", (float)contentLength / ((endTime - startTime) * Math.pow(10, -9)));
+            return String.format("%d", contentLength);
         });
         return f;
     }
