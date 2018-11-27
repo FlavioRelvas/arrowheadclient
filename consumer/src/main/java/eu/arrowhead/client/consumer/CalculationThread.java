@@ -1,10 +1,16 @@
 /*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, you can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ * This work was partially supported by National Funds through FCT/MCTES (Portuguese Foundation
+ * for Science and Technology), within the CISTER Research Unit (CEC/04234) and also by
+ * Grant nr. 737459 Call H2020-ECSEL-2016-2-IA-two-stage 
+ * ISEP/CISTER, Polytechnic Institute of Porto.
+ * Luis Lino Ferreira (llf@isep.ipp.pt), Flávio Relvas (flaviofrelvas@gmail.com),
+ * Michele Albano (mialb@isep.ipp.pt), Rafael Teles Da Rocha (rtdrh@isep.ipp.pt)
  */
 package eu.arrowhead.client.consumer;
-
 
 import eu.arrowhead.client.common.no_need_to_modify.Utility;
 import eu.arrowhead.client.common.no_need_to_modify.model.AddLogForm;
@@ -51,7 +57,6 @@ public class CalculationThread implements Runnable {
         try {
             Future<String> bandFuture = calculateBandwidth();
             Future<String> lossFuture = calculatePacketLoss(producerIp);
-            Thread.sleep(1000);
             String bandwidth = bandFuture.get();
             String packetLoss = lossFuture.get();
             //System.out.println("StartTime:" + startTime * 0.0000000001);
@@ -60,7 +65,6 @@ public class CalculationThread implements Runnable {
             System.out.println("Duration: " + duration);
             System.out.println("Bandwidth: " + bandwidth);
             System.out.println("Packet Loss: " + packetLoss);
-            Stub.pool.shutdown();
             HashMap<String, String> parameters = new HashMap();
             parameters.put("bandwidth", bandwidth);
             parameters.put("packet loss", packetLoss);
@@ -72,7 +76,6 @@ public class CalculationThread implements Runnable {
             //OrchestrationResponse orchResponse = postResponse.readEntity(OrchestrationResponse.class);
             if ((postResponse.getStatusInfo().getFamily() == Response.Status.Family.SUCCESSFUL)) {
                 System.out.println("Log added successfully");
-                Stub.pool.shutdownNow();
             }
         } catch (InterruptedException | ExecutionException ex) {
             System.out.println(ex);
@@ -80,13 +83,17 @@ public class CalculationThread implements Runnable {
     }
 
     private Future<String> calculateBandwidth() {
-        Future<String> f = Stub.pool.submit(() -> {
-            teste.stop(teste.getDescr());
-            System.out.println("SIZE: " + q.getSize());
-            while (q.getSize() > 0) {
-                System.out.println("Packet: " + teste.front(q));
-                contentLength += Integer.parseInt(teste.front(q).split(",")[2].trim());
-                teste.Dequeue(q);
+        Future<String> f = ConsumerMain.pool.submit(() -> {
+            Queue a = new Queue();
+            a.setCapacity(q.getCapacity());
+            a.setElements(q.getElements());
+            a.setSize(q.getSize());
+            teste.createQueue(100);
+            System.out.println("SIZE: " + a.getSize());
+            while (a.getSize() > 0) {
+                System.out.println("Packet: " + teste.front(a));
+                contentLength += Integer.parseInt(teste.front(a).split(",")[2].trim());
+                teste.Dequeue(a);
             }
             return String.format("%d", contentLength);
         });
@@ -94,7 +101,7 @@ public class CalculationThread implements Runnable {
     }
 
     private Future<String> calculatePacketLoss(String ip) {
-        Future<String> f = Stub.pool.submit(() -> {
+        Future<String> f = ConsumerMain.pool.submit(() -> {
             try {
                 if (!ip.equals("127.0.0.1")) {
                     if (System.getProperty("os.name").toLowerCase().contains("win")) {

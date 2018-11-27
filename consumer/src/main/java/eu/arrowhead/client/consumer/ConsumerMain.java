@@ -5,6 +5,17 @@
  *  European Commissions H2020 research and innovation programme, ECSEL Joint Undertaking
  *  (project no. 737459), the free state of Saxony, the German Federal Ministry of Education and
  *  national funding authorities from involved countries.
+
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, you can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ * This work was partially supported by National Funds through FCT/MCTES (Portuguese Foundation
+ * for Science and Technology), within the CISTER Research Unit (CEC/04234) and also by
+ * Grant nr. 737459 Call H2020-ECSEL-2016-2-IA-two-stage 
+ * ISEP/CISTER, Polytechnic Institute of Porto.
+ * Luis Lino Ferreira (llf@isep.ipp.pt), Flávio Relvas (flaviofrelvas@gmail.com),
+ * Michele Albano (mialb@isep.ipp.pt), Rafael Teles Da Rocha (rtdrh@isep.ipp.pt)
  */
 package eu.arrowhead.client.consumer;
 
@@ -16,13 +27,23 @@ import eu.arrowhead.client.common.no_need_to_modify.model.ArrowheadService;
 import eu.arrowhead.client.common.no_need_to_modify.model.ArrowheadSystem;
 import eu.arrowhead.client.common.no_need_to_modify.model.OrchestrationResponse;
 import eu.arrowhead.client.common.no_need_to_modify.model.ServiceRequestForm;
+import eu.arrowhead.client.consumer.lpcap.CaptureThread;
+import eu.arrowhead.client.consumer.lpcap.Queue;
+import eu.arrowhead.client.consumer.lpcap.teste;
 import java.awt.Font;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.Inet4Address;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.net.ssl.SSLContext;
@@ -44,7 +65,22 @@ public class ConsumerMain {
     private static Stub s;
     static boolean flag = true;
 
+    private static int POOL_SIZE = 5;
+    private static final int MAX_QUEUE_SIZE = 100;
+    private static final String NETWORK_INTEFACE = "enp4s0";
+    public static InetAddress ip = null;
+
+    public static ExecutorService pool = Executors.newFixedThreadPool(POOL_SIZE);
+
+    public static Queue q;
+
+    private static ArrowheadSystem consumer;
+    private static ArrowheadSystem provider;
+
+    private static final Logger log = Logger.getLogger(ConsumerMain.class.getName());
+
     public static void main(String[] args) {
+
         //Prints the working directory for extra information. Working directory should always contain a config folder with the app.properties file!
         System.out.println("Working directory: " + System.getProperty("user.dir"));
 
@@ -59,7 +95,27 @@ public class ConsumerMain {
 
         //Sending the orchestration request and parsing the response
         String providerUrl = sendOrchestrationRequest(srf);
+        try {
+            NetworkInterface ninf = NetworkInterface.getByName(NETWORK_INTEFACE);
+            Enumeration<InetAddress> addresses = ninf.getInetAddresses();
+            while (addresses.hasMoreElements()) {
+                ip = addresses.nextElement();
+                if (ip.getClass() == Inet4Address.class) {
+                    break;
+                }
+            }
 
+            pool = Executors.newFixedThreadPool(POOL_SIZE);
+            if (ip != null) {
+                teste.handleDev(NETWORK_INTEFACE);
+                teste.handleDescr();
+                teste.setFilter("(dst host " + provider.getAddress() + " && port " + provider.getPort() + ") || (dst host " + ip.toString().replace("/", "") + " && (src host " + provider.getAddress() + " && port " + provider.getPort() + "))");
+                System.out.println("FILTER: " + teste.getFilter());
+
+            }
+        } catch (SocketException ex) {
+
+        }
         Thread t = new Thread(new Runnable() {
             @Override
             public void run() {
@@ -69,9 +125,10 @@ public class ConsumerMain {
                         consumeService(providerUrl);
 
                         //Printing out the elapsed time during the orchestration and service consumption
-                        long endTime = System.currentTimeMillis();
-                        System.out.println("Orchestration and Service consumption response time: " + Long.toString(endTime - startTime));
-                        Thread.sleep(2000);
+                        //long endTime = System.currentTimeMillis();
+                        //System.out.println("Orchestration and Service consumption response time: " + Long.toString(endTime - startTime));
+                        //flag = false;
+                        Thread.sleep(300);
                     } catch (InterruptedException ex) {
                         Logger.getLogger(ConsumerMain.class.getName()).log(Level.SEVERE, null, ex);
                     }
@@ -116,6 +173,8 @@ public class ConsumerMain {
         ArrowheadSystem consumer = new ArrowheadSystem(systemName, "localhost", 0, "null");
         consumer.setId(props.getIntProperty("system_id", 0));
 
+        ConsumerMain.consumer = consumer;
+
         //You can put any additional metadata you look for in a Service here (key-value pairs)
         Map<String, String> metadata = new HashMap<>();
         metadata.put("unit", "watt");
@@ -158,7 +217,9 @@ public class ConsumerMain {
       Supported method types at the moment: GET, POST, PUT, DELETE
          */
         Response getResponse = s.sendRequestM(providerUrl, "GET", null);
-
+        if (getResponse == null) {
+            return;
+        }
         /*
       Parsing the response from the provider here. This code prints an error message, if the answer is not in the expected JSON format, but custom
       error handling can also be implemented here. For example the Orchestrator will send back a JSON with the structure of the eu.arrowhead.client
@@ -180,7 +241,7 @@ public class ConsumerMain {
             label.setFont(new Font("Arial", Font.BOLD, 18));
             //JOptionPane.showMessageDialog(null, label, "Provider Response", JOptionPane.INFORMATION_MESSAGE);
         }
-        
+
     }
 
     /*
@@ -228,6 +289,7 @@ public class ConsumerMain {
 
         //Getting the first provider from the response
         ArrowheadSystem provider = orchResponse.getResponse().get(0).getProvider();
+        ConsumerMain.provider = provider;
         s = new Stub(srf.getRequesterSystem(), provider);
         String serviceURI = orchResponse.getResponse().get(0).getServiceURI();
         //Compiling the URL for the provider
@@ -248,6 +310,7 @@ public class ConsumerMain {
     }
 
     private static void releaseResources() {
+        ConsumerMain.pool.shutdownNow();
         String systemName = props.getProperty("system_name");
 
         ArrowheadSystem consumer = new ArrowheadSystem(systemName, "localhost", 0, "null");

@@ -1,12 +1,22 @@
 /*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, you can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ * This work was partially supported by National Funds through FCT/MCTES (Portuguese Foundation
+ * for Science and Technology), within the CISTER Research Unit (CEC/04234) and also by
+ * Grant nr. 737459 Call H2020-ECSEL-2016-2-IA-two-stage 
+ * ISEP/CISTER, Polytechnic Institute of Porto.
+ * Luis Lino Ferreira (llf@isep.ipp.pt), Flávio Relvas (flaviofrelvas@gmail.com),
+ * Michele Albano (mialb@isep.ipp.pt), Rafael Teles Da Rocha (rtdrh@isep.ipp.pt)
  */
 package eu.arrowhead.client.consumer;
 
 import eu.arrowhead.client.common.no_need_to_modify.Utility;
+import eu.arrowhead.client.common.no_need_to_modify.exception.UnavailableServerException;
 import eu.arrowhead.client.common.no_need_to_modify.model.ArrowheadSystem;
+import static eu.arrowhead.client.consumer.ConsumerMain.pool;
+import static eu.arrowhead.client.consumer.ConsumerMain.q;
 import eu.arrowhead.client.consumer.lpcap.CaptureThread;
 import eu.arrowhead.client.consumer.lpcap.Queue;
 import eu.arrowhead.client.consumer.lpcap.teste;
@@ -39,66 +49,53 @@ public class Stub {
     private int contentLength;
     private ArrowheadSystem consumer;
     private ArrowheadSystem provider;
-    private static int POOL_SIZE = 5;
-    public static ExecutorService pool = Executors.newFixedThreadPool(POOL_SIZE);
+
+    private static final Logger log = Logger.getLogger(Stub.class.getName());
+
     public static final String MONITOR_URI = "http://127.0.0.1:8456/monitor/";
     private Instrumentation i;
-    private final int MAX_QUEUE_SIZE = 100;
-    private final String NETWORK_INTEFACE = "enp4s0";
-    private static InetAddress ip = null;
-
-    private Queue q;
 
     public Stub(ArrowheadSystem consumer, ArrowheadSystem provider) {
         //System.load("/home/flavio/NetBeansProjects/arrowhead-m3-funcional-clients/ArrowheadConsumerTest/src/main/java/eu/arrowhead/ArrowheadConsumer/lpcap/module.so");
         this.consumer = consumer;
         this.provider = provider;
-        try {
-            NetworkInterface ninf = NetworkInterface.getByName(NETWORK_INTEFACE);
-            Enumeration<InetAddress> addresses = ninf.getInetAddresses();
-            while (addresses.hasMoreElements()) {
-                ip = addresses.nextElement();
-                if (ip.getClass() == Inet4Address.class) {
-                    break;
-                }
-            }
-        } catch (SocketException ex) {
-            Logger.getLogger(Stub.class.getName()).log(Level.SEVERE, null, ex);
-        }
+
     }
 
     public <T> Response sendRequestM(String uri, String method, T payload) {
-        pool = Executors.newFixedThreadPool(POOL_SIZE);
-        if (ip != null) {
-            teste.handleDev(NETWORK_INTEFACE);
-            teste.handleDescr();
-            teste.setFilter("(dst host " + provider.getAddress() + " && port " + provider.getPort() + ") || (dst host " + ip.toString().replace("/", "") + " && (src host " + provider.getAddress() + " && port " + provider.getPort() + "))");
-            System.out.println("FILTER: " + teste.getFilter());
-            q=teste.createQueue(100);
-            pool.execute(new CaptureThread(q));
-        }
+        q = teste.createQueue(1000);
+        pool.execute(new CaptureThread(q));
         startTime = System.nanoTime();
         Instant st = Instant.now();
         System.out.println(Utility.toPrettyJson(null, Entity.json(payload)));
-        Response r = Utility.sendRequest(uri, method, payload);
-        endTime = System.nanoTime();
-        Instant et = Instant.now();
+        try {
+            Response r = Utility.sendRequest(uri, method, payload);
+            endTime = System.nanoTime();
+            Instant et = Instant.now();
 
-        MultivaluedMap<String, String> header = r.getStringHeaders();
-        int cl = 0;
-        for (Map.Entry<String, List<String>> entry : header.entrySet()) {
-            for (String s : entry.getValue()) {
-                //System.out.println(s);
-                cl += s.length();
+            MultivaluedMap<String, String> header = r.getStringHeaders();
+            int cl = 0;
+            for (Map.Entry<String, List<String>> entry : header.entrySet()) {
+                for (String s : entry.getValue()) {
+                    //System.out.println(s);
+                    cl += s.length();
+                }
+                //System.out.println(entry.getKey());
+                cl += entry.getKey().length();
             }
-            //System.out.println(entry.getKey());
-            cl += entry.getKey().length();
+            cl += r.getLength();
+            //System.out.println("Size " + cl);
+            contentLength = r.getLength();
+            //System.out.println("ST: " + st.toString() + "ET: " + et.toString());
+            teste.stop(teste.getDescr());
+            ConsumerMain.pool.execute(new CalculationThread(startTime, endTime, ConsumerMain.q, st, et, consumer, provider));
+            return r;
+        } catch (UnavailableServerException ex) {
+            log.info("Could not get any response from server. Message:" + ex.getMessage());
+            //ex.printStackTrace();
+            System.out.println("Could not get any response from server.");
         }
-        cl += r.getLength();
-        //System.out.println("Size " + cl);
-        contentLength = r.getLength();
-        //System.out.println("ST: " + st.toString() + "ET: " + et.toString());
-        pool.execute(new CalculationThread(startTime, endTime, q, st, et, consumer, provider));
-        return r;
+        teste.stop(teste.getDescr());
+        return null;
     }
 }
